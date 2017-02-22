@@ -29,7 +29,8 @@ What's in here?
 
 The project contains the following folders and important files:
 
-* ``code`` -- Where are lambda function code lives
+* ``dispatcher`` -- Where are dispatcher lambda function code lives
+* ``worker``-- Where the worker lambda function code lives
 * ``test``-- local tests to check that our scraper works locally
 * ``data`` -- Data files, such as those used to generate HTML.
 * ``fabfile.py`` -- [Fabric](http://docs.fabfile.org/en/latest/) commands for automating setup and deployment

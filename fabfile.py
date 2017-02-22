@@ -23,20 +23,20 @@ logger.setLevel(LOG_LEVEL)
 
 @_contextmanager
 def lvirtualenv(name):
-    INPUT_PATH = os.path.join(cwd, 'code')
+    INPUT_PATH = os.path.join(cwd, name)
     with lcd(INPUT_PATH):
-        with prefix('source %s/bin/activate' % name):
+        with prefix('source venv/bin/activate'):
             yield
 
 
-def _add_code_to_zip(venvpath='venv'):
+def _add_code_to_zip(name, mode='w'):
     """
     Adds code files to the deployment package
     """
     EXCLUDE_EXTENSIONS = ['.pyc']
-    INPUT_PATH = os.path.join(cwd, 'code')
+    INPUT_PATH = os.path.join(cwd, name)
     OUTPUT_PATH = os.path.join(cwd, 'zip')
-    with zipfile.ZipFile('%s/lambda.zip' % OUTPUT_PATH, 'a') as z:
+    with zipfile.ZipFile('%s/%s.zip' % (OUTPUT_PATH, name), mode) as z:
         for file in glob.glob('%s/*.*' % INPUT_PATH):
             fname = os.path.basename(file)
             if os.path.splitext(fname)[1].lower() in EXCLUDE_EXTENSIONS:
@@ -45,50 +45,55 @@ def _add_code_to_zip(venvpath='venv'):
 
 
 @task
-def generateVirtualEnvironment(name='venv'):
+def generateVirtualEnvironment(name):
     """
     Generate internal virtualenv so we can include dependencies
     """
-    INPUT_PATH = os.path.join(cwd, 'code')
+    INPUT_PATH = os.path.join(cwd, name)
     with lcd(INPUT_PATH):
-        command = 'virtualenv --no-site-packages %s' % name
+        command = 'virtualenv --no-site-packages venv'
         local(command)
     with lvirtualenv(name):
         local('pip install -r requirements.txt')
 
 
 @task
-def render():
+def render(name):
     """
     Create lambda code deployment package
     - If the internal virtualenv has not been generated, do it!
     - Compress libraries
     - Add code files
     """
-    # Libraries to include on the zip file
-    lib_path = os.path.join(cwd, 'code/venv/lib/python2.7/site-packages')
-    if not os.path.exists(lib_path):
-        execute('generateVirtualEnvironment', 'venv')
-
+    BASE_PATH = os.path.join(cwd, name)
     OUTPUT_PATH = os.path.join(cwd, 'zip')
-    try:
-        # Create output files folder if needed
-        if not os.path.exists(OUTPUT_PATH):
-            os.makedirs(OUTPUT_PATH)
-        # First zip all the used libraries
-        shutil.make_archive('%s/lambda' % (OUTPUT_PATH), 'zip', lib_path)
-        # Add code
-        _add_code_to_zip()
-    except Exception, e:
-        logger.error("Exit with uncaptured exception %s" % (e))
-        raise
+    # Create output files folder if needed
+    if not os.path.exists(OUTPUT_PATH):
+        os.makedirs(OUTPUT_PATH)
+    # If we have requirements create internal virtualenv and zip
+    if os.path.exists('%s/requirements.txt' % BASE_PATH):
+        lib_path = os.path.join(cwd,
+                                '%s/venv/lib/python2.7/site-packages' % (name))
+        if not os.path.exists(lib_path):
+            execute('generateVirtualEnvironment', name)
+        try:
+            # First zip all the used libraries
+            shutil.make_archive('%s/%s' % (OUTPUT_PATH, name), 'zip', lib_path)
+            # Add code
+            _add_code_to_zip(name, mode='a')
+        except Exception, e:
+            logger.error("Exit with uncaptured exception %s" % (e))
+            raise
+
+    else:
+        _add_code_to_zip(name, mode='w')
 
 
 @task
-def deploy(function='comidaSlackCommand'):
-    execute(render)
+def deploy(name, function='comidaSlackCommandWorker'):
+    execute('render', name)
     command = 'aws lambda update-function-code'
-    command += ' --zip-file=fileb://zip/lambda.zip'
+    command += ' --zip-file=fileb://zip/%s.zip' % (name)
     command += ' --function-name %s' % (function)
     logger.info('command: %s' % command)
     local(command)

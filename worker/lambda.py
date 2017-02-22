@@ -3,16 +3,9 @@
 import os
 import logging
 import re
+import json
 import requests
 from bs4 import BeautifulSoup
-import boto3
-from base64 import b64decode
-
-ENCRYPTED_EXPECTED_TOKEN = os.environ['kmsEncryptedToken']
-
-kms = boto3.client('kms')
-expected_token = kms.decrypt(CiphertextBlob=b64decode(ENCRYPTED_EXPECTED_TOKEN))['Plaintext']
-
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -27,32 +20,24 @@ AVAILABLE_LOCATIONS = {
 
 
 def lambda_handler(event, context):
-    result = ''
-    bot_event = event
+    payload = {'response_type': 'in_channel'}
+    text = ''
     raw_text = None
     user = None
-    # Token validation
+    message = json.loads(event['Records'][0]['Sns']['Message'])
+    logger.info(message)
     try:
-        token = bot_event['token']
-    except KeyError:
-        logger.error('invoked with unrecognized token')
-        return {'text': 'Could not find request token, sorry.'}
-
-    if token != expected_token:
-        logger.error("Request token (%s) does not match expected", token)
-        return {'text': 'Invalid request token'}
-
-    try:
-        raw_text = bot_event['text']
+        raw_text = message['text']
+        user = message['user_name']
     except KeyError:
         pass
-
     try:
-        user = bot_event['user_name']
+        url = message['response_url']
     except KeyError:
-        pass
+        logger.error("could nof find the response url")
+        return
     if user:
-        result += 'Hi %s, hungry huh?\n' % user
+        text += 'Hi %s, Here are your options for today\n' % user
     if not raw_text:
         location = 'npr'
     else:
@@ -61,14 +46,14 @@ def lambda_handler(event, context):
         response = requests.get(URL)
         if (response.status_code != 200):
             logger.error("page responded with %s code" % response.status_code)
-            result += 'Could not get food truck data.\n'
+            text += 'Could not get food truck data.\n'
         else:
             soup = BeautifulSoup(response.content, 'html.parser')
             areas = AVAILABLE_LOCATIONS[location]['areas']
             for area in areas:
                 h2 = soup.find('h2', text=re.compile(r'%s' % area))
                 if h2:
-                    result += '\n## ' + area + '\n'
+                    text += '\n## ' + area + '\n'
                     nextNode = h2
                     while True:
                         nextNode = nextNode.nextSibling
@@ -81,18 +66,21 @@ def lambda_handler(event, context):
                         elif tag_name == 'div':
                             link = nextNode.find('a')
                             if link:
-                                result += '%s\n' % link.get_text()
-            if result != '':
-                result += '\nhttp://foodtruckfiesta.com/apps/maplarge.html\n'
+                                text += '%s\n' % link.get_text()
+            if text != '':
+                text += '\nhttp://foodtruckfiesta.com/apps/maplarge.html\n'
             extra = AVAILABLE_LOCATIONS[location]['extra']
             if extra:
-                result += '\n%s\n' % extra
+                text += '\n%s\n' % extra
             # Check to see if our result is still empty and warn user
-            if result == '':
-                result += 'No available areas for your location'
+            if text == '':
+                text += 'No available areas for your location'
     else:
-        result += "Your location is not available. Available locations:\n"
+        text += "Your location is not available. Available locations:\n"
         for key in AVAILABLE_LOCATIONS:
-            result += '-%s\n' % key
-    logger.info('result %s' % result)
-    return {'text': result}
+            text += '-%s\n' % key
+    logger.info('text %s' % text)
+    # Add text to the payload
+    payload['text'] = text
+    # Finally send a post response to slack
+    requests.post(url, json=payload)
