@@ -1,14 +1,18 @@
 #!/usr/bin/env python
 # _*_ coding:utf-8 _*_
-
-from __future__ import print_function
+import os
 import logging
-import requests
 import re
+import requests
 from bs4 import BeautifulSoup
+import boto3
+from base64 import b64decode
 
+ENCRYPTED_EXPECTED_TOKEN = os.environ['kmsEncryptedToken']
 
-print('Loading comidaBot function')
+kms = boto3.client('kms')
+expected_token = kms.decrypt(CiphertextBlob=b64decode(ENCRYPTED_EXPECTED_TOKEN))['Plaintext']
+
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -23,18 +27,36 @@ AVAILABLE_LOCATIONS = {
 
 
 def lambda_handler(event, context):
-    logger.debug(event)
+    result = ''
     bot_event = event
     raw_text = None
+    user = None
+    # Token validation
+    try:
+        token = bot_event['token']
+    except KeyError:
+        logger.error('invoked with unrecognized token')
+        return {'text': 'Could not find request token, sorry.'}
+
+    if token != expected_token:
+        logger.error("Request token (%s) does not match expected", token)
+        return {'text': 'Invalid request token'}
+
     try:
         raw_text = bot_event['text']
     except KeyError:
         pass
+
+    try:
+        user = bot_event['user_name']
+    except KeyError:
+        pass
+    if user:
+        result += 'Hi %s, hungry huh?\n' % user
     if not raw_text:
         location = 'npr'
     else:
         location = raw_text.strip().lower()
-    result = ''
     if location in AVAILABLE_LOCATIONS:
         response = requests.get(URL)
         if (response.status_code != 200):
