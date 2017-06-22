@@ -11,9 +11,9 @@ logger.setLevel(logging.INFO)
 
 URL = 'http://foodtruckfiesta.com/dc-food-truck-list/'
 AVAILABLE_LOCATIONS = {
-    'npr': {
-        'areas': ['NoMa', 'CNN', 'Union Station'],
-        'extra': 'Here\'s the SoundBites menu for this week: https://intranet.npr.org/intranet/publish/Main/Employee_Resources/Sound_Bites_Cafe.php'
+    'POLITICO': {
+        'areas': ['Rosslyn'],
+        'extra': 'There are probably other trucks outside too. Don\'t forget about Chipotle, Chop\'t, Potbelly, Wiseguy and that deli I don\'t know the name of.'
     },
     'bid': {
         'areas': [],
@@ -21,7 +21,7 @@ AVAILABLE_LOCATIONS = {
     }
 }
 
-def run2(location='npr'):
+def run2(location='POLITICO'):
     result = ''
     if location in AVAILABLE_LOCATIONS:
         response = requests.get(URL)
@@ -49,7 +49,7 @@ def run2(location='npr'):
                             if link:
                                 result += '%s\n' % link.get_text()
             if result != '':
-                result += '\nhttp://foodtruckfiesta.com/apps/maplarge.html\n'
+                result += '\nhttp://foodtruckfiesta.com/dc-food-truck-list/\n'
             extra = AVAILABLE_LOCATIONS[location]['extra']
             if extra:
                 result += '\n%s\n' % extra
@@ -63,7 +63,7 @@ def run2(location='npr'):
     logger.info(result)
 
 
-def run(location='npr'):
+def run(location='POLITICO'):
     """
     scrape foodtruckfiesta data
     """

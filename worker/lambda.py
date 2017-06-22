@@ -13,8 +13,8 @@ logger.setLevel(logging.INFO)
 URL = 'http://foodtruckfiesta.com/dc-food-truck-list/'
 AVAILABLE_LOCATIONS = {
     'npr': {
-        'areas': ['NoMa', 'CNN', 'Union Station'],
-        'extra': 'Here\'s the SoundBites menu for this week: https://intranet.npr.org/intranet/publish/Main/Employee_Resources/Sound_Bites_Cafe.php'
+        'areas': ['Rosslyn'],
+        'extra': 'There are probably other trucks outside too. Don\'t forget about Chipotle, Chop\'t, Potbelly, Wiseguy and that deli I don\'t know the name of.'
     }
 }
 
@@ -34,7 +34,7 @@ def lambda_handler(event, context):
     try:
         url = message['response_url']
     except KeyError:
-        logger.error("could nof find the response url")
+        logger.error("could not find the response url")
         return
     if user:
         text += 'Hi %s, Here are your options for today\n' % user
@@ -68,7 +68,7 @@ def lambda_handler(event, context):
                             if link:
                                 text += '%s\n' % link.get_text()
             if text != '':
-                text += '\nhttp://foodtruckfiesta.com/apps/maplarge.html\n'
+                text += '\nhttp://foodtruckfiesta.com/dc-food-truck-list/\n'
             extra = AVAILABLE_LOCATIONS[location]['extra']
             if extra:
                 text += '\n%s\n' % extra
